@@ -36,6 +36,9 @@ add_library(riscv_model
     riscv_model_impl.h
     riscv_softfloat.cpp
     riscv_softfloat.h
+    riscv_rvbna.cpp
+    riscv_rvbna.h
+    riscv_rvbna_core.h
     config_utils.cpp
     config_utils.h
     file_utils.cpp

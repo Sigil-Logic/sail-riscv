@@ -400,10 +400,62 @@ function zvt_prod_acc64(frm : bits(3), c : bits(64), vr : zvt_vrf, km : int,
   (acc, zvt_nv_of(fl))
 }
 
-// The kernel the type table selects, applied to one element.  The SEW <= 16
-// floating-point kernels (OFP8, FP16 and BF16, whose dot products [VME]
-// specifies by reference to bulk-normalized accumulation) are not yet
-// modelled, and assert.
+// ---- The SEW <= 16 floating-point kernels -----------------------------------
+//
+// For SEW <= 16, the products are bulk-normalized and accumulated in fixed
+// point, then converted to FP32 rounding to odd, by the RISC-V Bulk
+// Normalization Algorithm ([RVBNA], src/unpriv/rvbna.adoc in
+// riscv/riscv-isa-manual at commit e03ff979b15bf11f17afe2f6619835afd4e346b4);
+// the result is then added to the accumulator rounding to odd as [RVBNA]
+// (Rounding to Odd behavior in dot product mode) describes ([VME] Matrix
+// Arithmetic Instructions).  frm is not used.  The arithmetic is in C, in
+// c_emulator/riscv_rvbna_core.h, which states the choices this model makes
+// where [VME] and [RVBNA] leave something open.  In particular, RVBNA's
+// static dimension n is KMAX, and the elements k >= tk are passed as +0.
+
+// The FP32 sum rounding to odd, with RVBNA's overflow and zero rules.
+val riscv_f32AddRoundOdd = pure {cpp: "softfloat_f32addroundodd", lem: "softfloat_f32_add_round_odd"} : (bits_S, bits_S) -> (bits_fflags, bits_S)
+
+// The RVBNA dot products: four OFP8 elements per side (each side E5M2 when
+// its flag is 1, else E4M3), or two FP16 or BF16 elements per side; element
+// k in the k-th least significant 8 or 16 bits.
+val riscv_rvbnaDotOFP8 = pure {cpp: "rvbna_dot_ofp8", lem: "rvbna_dot_ofp8"} : (bits(1), bits(1), bits(32), bits(32)) -> (bits_fflags, bits_S)
+val riscv_rvbnaDotFP16 = pure {cpp: "rvbna_dot_fp16", lem: "rvbna_dot_fp16"} : (bits(32), bits(32)) -> (bits_fflags, bits_S)
+val riscv_rvbnaDotBF16 = pure {cpp: "rvbna_dot_bf16", lem: "rvbna_dot_bf16"} : (bits(32), bits(32)) -> (bits_fflags, bits_S)
+
+// Column i of an SEW <= 16 operand, k = 0 .. tk - 1, packed with element k in
+// bits w*k+w-1 .. w*k; the elements k >= tk are +0.
+function zvt_pack_column(vr : zvt_vrf, w : {8, 16}, km : int, vs : int, tk : int, i : int) -> bits(32) = {
+  var x : bits(32) = zeros();
+  if w == 8 then {
+    foreach (k from 0 to 3) {
+      if k < tk then x[8 * k + 7 .. 8 * k] = zvt_gather_elem(vr, 8, km, vs, k, i)[7 .. 0]
+    }
+  } else {
+    foreach (k from 0 to 1) {
+      if k < tk then x[16 * k + 15 .. 16 * k] = zvt_gather_elem(vr, 16, km, vs, k, i)[15 .. 0]
+    }
+  };
+  x
+}
+
+// dot_odd: the RVBNA dot product of column i of A and column j of B, then
+// added to c rounding to odd; only NV and OF are kept.
+function zvt_dot_odd(fa : zvt_fmt, fb : zvt_fmt, c : bits(32), vr : zvt_vrf, km : int,
+                     vs2 : int, vs1 : int, tk : int, i : int, j : int) -> (bits(32), bits(5)) = {
+  let w : {8, 16} = if fa == ZVT_E4M3 | fa == ZVT_E5M2 then 8 else 16;
+  let a = zvt_pack_column(vr, w, km, vs2, tk, i);
+  let b = zvt_pack_column(vr, w, km, vs1, tk, j);
+  let (fl1, d) : (bits(5), bits(32)) = match fa {
+    ZVT_FP16 => riscv_rvbnaDotFP16(a, b),
+    ZVT_BF16 => riscv_rvbnaDotBF16(a, b),
+    _ => riscv_rvbnaDotOFP8(bool_to_bit(fa == ZVT_E5M2), bool_to_bit(fb == ZVT_E5M2), a, b),
+  };
+  let (fl2, y) = riscv_f32AddRoundOdd(c, d);
+  (y, zvt_nv_of(fl1 | fl2))
+}
+
+// The kernel the type table selects, applied to one element.
 function zvt_kernel(fa : zvt_fmt, fb : zvt_fmt, frm : bits(3), c : bits(64), vr : zvt_vrf,
                     km : int, vs2 : int, vs1 : int, tk : int, i : int, j : int)
     -> (bits(64), bits(5)) =
@@ -416,8 +468,8 @@ function zvt_kernel(fa : zvt_fmt, fb : zvt_fmt, frm : bits(3), c : bits(64), vr 
     },
     ZVT_FP64  => zvt_prod_acc64(frm, c, vr, km, vs2, vs1, tk, i, j),
     _ => {
-      assert(false, "Zvt: the SEW <= 16 floating-point kernels are not yet modelled");
-      (c, zeros())
+      let (y, f) = zvt_dot_odd(fa, fb, c[31 .. 0], vr, km, vs2, vs1, tk, i, j);
+      (zero_extend(64, y), f)
     },
   }
 

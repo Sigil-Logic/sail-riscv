@@ -102,6 +102,7 @@ add_custom_command(
         # Extra #include's.
         --c-header-include riscv_platform_if.h
         --c-include riscv_softfloat.h
+        --c-include riscv_rvbna.h
         # Don't dead-code eliminate these functions.
         --c-preserve init_model
         --c-preserve init_boot_requirements
