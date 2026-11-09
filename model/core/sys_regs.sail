@@ -228,6 +228,8 @@ bitfield Mstatus : bits(64) = {
   SXL  : 35 .. 34,
   UXL  : 33 .. 32,
 
+  MS   : 30 .. 29,
+
   SDT  : 24,
   SPELP: 23,
   TSR  : 22,
@@ -283,6 +285,8 @@ private function legalize_mstatus(o : Mstatus, v : bits(64)) -> Mstatus = {
     // Validate FS and VS against their allowed set.
     FS = legalize_extStatus(plat_mstatus_legal_fs, v[FS]),
     VS = legalize_extStatus(plat_mstatus_legal_vs, v[VS]),
+    // The Zvt (VME) context status, mstatus[30:29]; read-only Off without Zvt.
+    MS = if hartSupports(Ext_Zvtbase) then legalize_extStatus(ExtContext_FourState, v[MS]) else extStatus_map(Off),
 
     MPP = legalize_nominal_privLevel(v[MPP], o[MPP]),
     SPP = if currentlyEnabled(Ext_S) then v[SPP] else 0b0,
@@ -303,7 +307,8 @@ private function legalize_mstatus(o : Mstatus, v : bits(64)) -> Mstatus = {
   // Set dirty bit to OR of other status bits.
   let dirty = extStatus_map(o[FS]) == Dirty |
               extStatus_map(o[XS]) == Dirty |
-              extStatus_map(o[VS]) == Dirty;
+              extStatus_map(o[VS]) == Dirty |
+              extStatus_map(o[MS]) == Dirty;
 
   [o with SD = bool_to_bit(dirty)]
 }
@@ -965,6 +970,7 @@ bitfield Sstatus : bits(64) = {
   SD    : xlen - 1,
 
   UXL   : 33 .. 32,
+  MS    : 30 .. 29,
   SDT   : 24,
   SPELP : 23,
   MXR   : 19,
@@ -996,6 +1002,7 @@ private function lower_mstatus(m : Mstatus, virt : bool) -> Sstatus = {
     XS = m[XS],
     FS = m[FS],
     VS = m[VS],
+    MS = m[MS],
     SPP = m[SPP],
     SPIE = m[SPIE],
     SIE = m[SIE],
@@ -1004,7 +1011,7 @@ private function lower_mstatus(m : Mstatus, virt : bool) -> Sstatus = {
 
 private function lift_sstatus(m : Mstatus, s : Sstatus) -> Mstatus = {
   let dirty = extStatus_map(s[FS]) == Dirty | extStatus_map(s[XS]) == Dirty |
-              extStatus_map(s[VS]) == Dirty;
+              extStatus_map(s[VS]) == Dirty | extStatus_map(s[MS]) == Dirty;
 
   [m with
     SD = bool_to_bit(dirty),
@@ -1016,6 +1023,7 @@ private function lift_sstatus(m : Mstatus, s : Sstatus) -> Mstatus = {
     XS = s[XS],
     FS = s[FS],
     VS = s[VS],
+    MS = s[MS],
     SPP = s[SPP],
     SPIE = s[SPIE],
     SIE = s[SIE],

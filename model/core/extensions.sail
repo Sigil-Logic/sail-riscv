@@ -417,6 +417,38 @@ mapping clause extensionName = Ext_Zvfhmin <-> "zvfhmin"
 function clause hartSupports(Ext_Zvfhmin) = config extensions.Zvfhmin.supported
 
 // Vector Basic Bit-manipulation
+// Vector Matrix Extension (Zvt, VME)
+enum clause extension = Ext_Zvtbase
+mapping clause extensionName = Ext_Zvtbase <-> "zvtbase"
+function clause hartSupports(Ext_Zvtbase) = config extensions.Zvtbase.supported
+enum clause extension = Ext_Zvt8e
+mapping clause extensionName = Ext_Zvt8e <-> "zvt8e"
+function clause hartSupports(Ext_Zvt8e) = config extensions.Zvt8e.supported
+enum clause extension = Ext_Zvt16e
+mapping clause extensionName = Ext_Zvt16e <-> "zvt16e"
+function clause hartSupports(Ext_Zvt16e) = config extensions.Zvt16e.supported
+enum clause extension = Ext_Zvt64e
+mapping clause extensionName = Ext_Zvt64e <-> "zvt64e"
+function clause hartSupports(Ext_Zvt64e) = config extensions.Zvt64e.supported
+enum clause extension = Ext_Zvti8i32mm
+mapping clause extensionName = Ext_Zvti8i32mm <-> "zvti8i32mm"
+function clause hartSupports(Ext_Zvti8i32mm) = config extensions.Zvti8i32mm.supported
+enum clause extension = Ext_Zvtofp8fmm
+mapping clause extensionName = Ext_Zvtofp8fmm <-> "zvtofp8fmm"
+function clause hartSupports(Ext_Zvtofp8fmm) = config extensions.Zvtofp8fmm.supported
+enum clause extension = Ext_Zvtfp16fmm
+mapping clause extensionName = Ext_Zvtfp16fmm <-> "zvtfp16fmm"
+function clause hartSupports(Ext_Zvtfp16fmm) = config extensions.Zvtfp16fmm.supported
+enum clause extension = Ext_Zvtbf16fmm
+mapping clause extensionName = Ext_Zvtbf16fmm <-> "zvtbf16fmm"
+function clause hartSupports(Ext_Zvtbf16fmm) = config extensions.Zvtbf16fmm.supported
+enum clause extension = Ext_Zvtfmm
+mapping clause extensionName = Ext_Zvtfmm <-> "zvtfmm"
+function clause hartSupports(Ext_Zvtfmm) = config extensions.Zvtfmm.supported
+enum clause extension = Ext_Zvtdmm
+mapping clause extensionName = Ext_Zvtdmm <-> "zvtdmm"
+function clause hartSupports(Ext_Zvtdmm) = config extensions.Zvtdmm.supported
+
 enum clause extension = Ext_Zvbb
 mapping clause extensionName = Ext_Zvbb <-> "zvbb"
 function clause hartSupports(Ext_Zvbb) = config extensions.Zvbb.supported
@@ -736,12 +768,17 @@ function currentlyEnabled_measure(ext : extension) -> int =
     Ext_Sv39 => 2, // > S
     Ext_Zfh => 2, // > F
     Ext_Zvbb => 2, // > Zve32x
+    Ext_Zvtbase => 2, // > Zve32x
     Ext_Zve32f => 2, // > Zve32x
     Ext_Zve64x => 2, // > Zve32x
     Ext_Zcmop => 2, // > Zca
     Ext_Zicfiss => 2, // > Zaamo
 
     Ext_Ssccptr => 3, // > Sv39
+    Ext_Zvt8e => 3, // > Zvtbase
+    Ext_Zvt16e => 3, // > Zvtbase
+    Ext_Zvt64e => 3, // > Zvtbase, Zve64x
+    Ext_Zvtfmm => 3, // > Zvtbase, Zve32f
     Ext_Sscsrind => 3, // > Smcsrind
     Ext_Supm => 3, // > U
     Ext_Svnapot => 3, // > Sv39
@@ -759,11 +796,16 @@ function currentlyEnabled_measure(ext : extension) -> int =
     Ext_Zvknhb => 3, // > Zve64x
 
     Ext_H => 4, // > virtual_mem_supported
+    Ext_Zvti8i32mm => 4, // > Zvt8e
+    Ext_Zvtofp8fmm => 4, // > Zvt8e
+    Ext_Zvtfp16fmm => 4, // > Zvt16e
+    Ext_Zvtbf16fmm => 4, // > Zvt16e
     Ext_Zve64d => 4, // > Zve64f
     Ext_Zvfbfwma => 4, // > Zvfbfmin
     Ext_Zvfh => 4, // > Zfhmin
 
     Ext_Shcounterenw => 5, // > H
+    Ext_Zvtdmm => 5, // > Zvt64e, Zve64d
     Ext_Shgatpa => 5, // > H
     Ext_Shlcofideleg => 5, // > H
     Ext_Shtvala => 5, // > H
@@ -919,6 +961,18 @@ let extensions_ordered_for_isa_string = [
   Ext_Zvl256b,
   Ext_Zvl512b,
   Ext_Zvl1024b,
+
+  // Zvt
+  Ext_Zvtbase,
+  Ext_Zvt8e,
+  Ext_Zvt16e,
+  Ext_Zvt64e,
+  Ext_Zvti8i32mm,
+  Ext_Zvtofp8fmm,
+  Ext_Zvtfp16fmm,
+  Ext_Zvtbf16fmm,
+  Ext_Zvtfmm,
+  Ext_Zvtdmm,
 
   // Supervisor extensions, ordered alphabetically.
   Ext_Ssccptr,

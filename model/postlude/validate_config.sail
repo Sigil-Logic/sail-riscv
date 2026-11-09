@@ -1306,6 +1306,51 @@ private function check_physaddr_bits() -> bool = {
   } else { true }
 }
 
+// Zvt (VME): the extension dependencies of [VME] Overview.  TE <= VLEN/4 is the
+// type-level constraint on te_exp (core/zvt_te.sail).
+private function check_zvt_dependency(name : string, enabled : bool, deps : bool, deps_name : string) -> bool =
+  if enabled & not(deps) then {
+    print_endline("The " ^ name ^ " extension is enabled, but it requires " ^ deps_name ^ ".");
+    false
+  } else true
+
+private function check_zvt_config() -> bool = {
+  var valid : bool = true;
+  let base       : bool = config extensions.Zvtbase.supported;
+  let zvt8e      : bool = config extensions.Zvt8e.supported;
+  let zvt16e     : bool = config extensions.Zvt16e.supported;
+  let zvt64e     : bool = config extensions.Zvt64e.supported;
+  let zvti8i32mm : bool = config extensions.Zvti8i32mm.supported;
+  let zvtofp8fmm : bool = config extensions.Zvtofp8fmm.supported;
+  let zvtfp16fmm : bool = config extensions.Zvtfp16fmm.supported;
+  let zvtbf16fmm : bool = config extensions.Zvtbf16fmm.supported;
+  let zvtfmm     : bool = config extensions.Zvtfmm.supported;
+  let zvtdmm     : bool = config extensions.Zvtdmm.supported;
+  let zve32x     : bool = hartSupports(Ext_Zve32x);
+  let zve32f     : bool = hartSupports(Ext_Zve32f);
+  let zve64x     : bool = hartSupports(Ext_Zve64x);
+  let zve64d     : bool = hartSupports(Ext_Zve64d);
+  valid = valid & check_zvt_dependency("Zvtbase", base, zve32x, "Zve32x");
+  valid = valid & check_zvt_dependency("Zvt8e", zvt8e, base, "Zvtbase");
+  valid = valid & check_zvt_dependency("Zvt16e", zvt16e, base, "Zvtbase");
+  valid = valid & check_zvt_dependency("Zvt64e", zvt64e, base & zve64x, "Zvtbase and Zve64x");
+  valid = valid & check_zvt_dependency("Zvti8i32mm", zvti8i32mm, zvt8e, "Zvt8e");
+  valid = valid & check_zvt_dependency("Zvtofp8fmm", zvtofp8fmm, zvt8e & zve32f, "Zvt8e and Zve32f");
+  valid = valid & check_zvt_dependency("Zvtfp16fmm", zvtfp16fmm, zvt16e & zve32f, "Zvt16e and Zve32f");
+  valid = valid & check_zvt_dependency("Zvtbf16fmm", zvtbf16fmm, zvt16e & zve32f, "Zvt16e and Zve32f");
+  valid = valid & check_zvt_dependency("Zvtfmm", zvtfmm, base & zve32f, "Zvtbase and Zve32f");
+  valid = valid & check_zvt_dependency("Zvtdmm", zvtdmm, zvt64e & zve64d, "Zvt64e and Zve64d");
+  // The type-level constraint on te_exp (core/zvt_te.sail) is not checked when
+  // the configuration is loaded, so check it here, whether or not Zvt is
+  // enabled.  As in check_vlen_elen, the `: nat` annotations keep the Sail
+  // compiler from eliminating the check (rems-project/sail issue 1387).
+  if (te_exp : nat) < 2 | (te_exp : nat) > 13 | (te_exp : nat) + 2 > (vlen_exp : nat) then {
+    valid = false;
+    print_endline("Zvt TE is set to 2^" ^ dec_str(te_exp) ^ " but must be within [2^2, 2^13] and at most VLEN/4 (VLEN is 2^" ^ dec_str(vlen_exp) ^ ").");
+  };
+  valid
+}
+
 private function check_version_constraints() -> bool = {
   var valid : bool = true;
 
@@ -1342,6 +1387,7 @@ function config_is_valid() -> bool = {
   & check_pmp()
   & check_misc_extension_dependencies()
   & check_extension_param_constraints()
+  & check_zvt_config()
   & check_version_constraints()
   & check_platform_constraints()
   & check_stateen_config()

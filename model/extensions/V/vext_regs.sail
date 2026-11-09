@@ -253,7 +253,10 @@ let VLENB : xlenbits = to_bits(vlen / 8)
 
 bitfield Vtype  : xlenbits = {
   vill      : xlen - 1,
-  reserved  : xlen - 2 .. 8,
+  reserved  : xlen - 2 .. 9,
+  // altfmt, bit 8, placed as Zvfbfa places it.  Zvt uses altfmt, but the
+  // Zvt text this model follows does not define its position.
+  altfmt    : 8,
   vma       : 7,
   vta       : 6,
   vsew      : 5 .. 3,

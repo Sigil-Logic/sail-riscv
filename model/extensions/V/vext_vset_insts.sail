@@ -66,6 +66,7 @@ private function handle_illegal_vtype(rd : regidx) -> ExecutionResult = {
 
   vtype.bits = 0b1 @ zeros(xlen - 1); // set vtype.vill
   vl = zeros();
+  zvt_clear_mtype();
   csr_write_callback("vtype", vtype.bits);
   csr_write_callback("vl", zero_extend(vl));
   set_vstart(zeros());
@@ -79,7 +80,7 @@ private function handle_illegal_vtype(rd : regidx) -> ExecutionResult = {
 
 let vl_use_ceil : bool = config extensions.V.vl_use_ceil
 
-private function calculate_new_vl(AVL : xlenbits, VLMAX : range(1, vlen)) -> range(0, vlen) = {
+function calculate_new_vl(AVL : xlenbits, VLMAX : range(1, vlen)) -> range(0, vlen) = {
   let AVL = unsigned(AVL);
   // See "Constraints on Setting vl" in the vector spec.
   if AVL <= VLMAX then AVL
@@ -91,8 +92,20 @@ private function calculate_new_vl(AVL : xlenbits, VLMAX : range(1, vlen)) -> ran
   } else VLMAX
 }
 
+// With rs1 = rd = x0, vset[i]vl[i] keeps vl, and [V] reserves that form
+// when vill was set beforehand or when VLMAX would change.  sail-riscv sets
+// vill in both cases.  With Zvt enabled, this model instead raises
+// an illegal-instruction exception in both reserved cases, as it does for
+// the reserved cases of Zvt itself.  Without Zvt, V's behavior is unchanged.
+function zvt_keep_vl_reserved_illegal() -> bool = currentlyEnabled(Ext_Zvtbase)
+
+// The first reserved case: rs1 = rd = x0 with vill set beforehand.
+function zvt_keep_vl_after_vill(rs1 : regidx, rd : regidx) -> bool =
+  zvt_keep_vl_reserved_illegal() & rs1 == zreg & rd == zreg & not(valid_vtype())
+
 // Execute vsetvl, vsetvli, or vsetivli.
 private function execute_vsetvl_type(
+  altfmt : bits(1),
   ma : bits(1),
   ta : bits(1),
   sew : bits(3),
@@ -119,9 +132,15 @@ private function execute_vsetvl_type(
   // - Also some cases require that VLMAX doesn't change (i.e. LMUL/SEW is constant).
   if SEW_pow_new > elen_exp |
      SEW_pow_new > (LMUL_pow_new + elen_exp) |
-     (requires_fixed_vlmax & (lmul_sew_ratio != lmul_sew_ratio_new | not(valid_vtype()))) then {
+     (requires_fixed_vlmax & not(zvt_keep_vl_reserved_illegal()) & (lmul_sew_ratio != lmul_sew_ratio_new | not(valid_vtype()))) then {
     return handle_illegal_vtype(rd);
   };
+
+  // The second reserved case: with rs1 = rd = x0, a change of VLMAX is an
+  // illegal-instruction exception when Zvt is enabled (a prior vill is
+  // checked first, in zvt_keep_vl_after_vill).
+  if requires_fixed_vlmax & zvt_keep_vl_reserved_illegal() & lmul_sew_ratio != lmul_sew_ratio_new
+  then return Illegal_Instruction();
 
   let VLMAX = 2 ^ (LMUL_pow_new + vlen_exp - SEW_pow_new);
 
@@ -130,11 +149,14 @@ private function execute_vsetvl_type(
 
   vtype = [Mk_Vtype(zeros()) with
     vill = 0b0,
+    altfmt = altfmt,
     vma = ma,
     vta = ta,
     vsew = sew,
     vlmul = lmul,
   ];
+
+  zvt_clear_mtype();
 
   // reset vstart to 0
   set_vstart(zeros());
@@ -154,7 +176,10 @@ mapping clause encdec = VSETVLI(vtr, ma, ta, sew, lmul, rs1, rd)
   when currentlyEnabled(Ext_Zve32x)
 
 function clause execute VSETVLI(vtr, ma, ta, sew, lmul, rs1, rd) = {
-  if vtr != zeros()
+  if zvt_keep_vl_after_vill(rs1, rd) then return Illegal_Instruction();
+
+  // vtr is vtype[10:8]: bit 8 is altfmt, bits 10:9 are reserved.
+  if vtr[2 .. 1] != zeros() | (vtr[0 .. 0] == 0b1 & not(zvt_altfmt_supported(sew)))
   then return handle_illegal_vtype(rd);
 
   let avl =
@@ -164,7 +189,7 @@ function clause execute VSETVLI(vtr, ma, ta, sew, lmul, rs1, rd) = {
 
   let requires_fixed_vlmax = rd == zreg & rs1 == zreg;
 
-  execute_vsetvl_type(ma, ta, sew, lmul, avl, requires_fixed_vlmax, rd)
+  execute_vsetvl_type(vtr[0 .. 0], ma, ta, sew, lmul, avl, requires_fixed_vlmax, rd)
 }
 
 
@@ -179,9 +204,12 @@ mapping clause encdec = VSETVL(rs2, rs1, rd)
   when currentlyEnabled(Ext_Zve32x)
 
 function clause execute VSETVL(rs2, rs1, rd) = {
+  if zvt_keep_vl_after_vill(rs1, rd) then return Illegal_Instruction();
+
   let vt = Mk_Vtype(X(rs2));
 
   if vt[vill] == 0b1 | vt[reserved] != zeros()
+     | (vt[altfmt] == 0b1 & not(zvt_altfmt_supported(vt[vsew])))
   then return handle_illegal_vtype(rd);
 
   let avl =
@@ -191,7 +219,7 @@ function clause execute VSETVL(rs2, rs1, rd) = {
 
   let requires_fixed_vlmax = rd == zreg & rs1 == zreg;
 
-  execute_vsetvl_type(vt[vma], vt[vta], vt[vsew], vt[vlmul], avl, requires_fixed_vlmax, rd)
+  execute_vsetvl_type(vt[altfmt], vt[vma], vt[vta], vt[vsew], vt[vlmul], avl, requires_fixed_vlmax, rd)
 }
 
 mapping clause assembly = VSETVL(rs2, rs1, rd)
@@ -205,11 +233,12 @@ mapping clause encdec = VSETIVLI(0b0 @ vtr, ma, ta, sew, lmul, uimm, rd)
   when currentlyEnabled(Ext_Zve32x)
 
 function clause execute VSETIVLI(vtr, ma, ta, sew, lmul, uimm, rd) = {
-  if vtr != zeros()
+  // vtr is vtype[10:8], with bit 10 always 0 here: bit 8 is altfmt.
+  if vtr[2 .. 1] != zeros() | (vtr[0 .. 0] == 0b1 & not(zvt_altfmt_supported(sew)))
   then return handle_illegal_vtype(rd);
 
   let avl : xlenbits = zero_extend(uimm);
-  execute_vsetvl_type(ma, ta, sew, lmul, avl, false, rd)
+  execute_vsetvl_type(vtr[0 .. 0], ma, ta, sew, lmul, avl, false, rd)
 }
 
 mapping clause assembly = VSETIVLI(vtr, ma, ta, sew, lmul, uimm, rd)

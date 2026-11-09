@@ -1011,6 +1011,49 @@
     "Zvfhmin": {
       "supported": true
     },
+    // Zvt, the RISC-V Vector Matrix Extension (VME).  It is off by
+    // default: enable Zvtbase, and each sub-extension wanted, below.
+    "Zvt": {
+      // TE = 2^te_exp, the tile edge in elements at TEW <= 32.  Zvt requires
+      // 4 <= TE <= VLEN/4, so 2 <= te_exp <= vlen_exp - 2, and te_exp <= 13.
+      "te_exp": 4,
+      // How a tile tail element is written: "ZvtTileTail_Undisturbed" leaves
+      // it unchanged, "ZvtTileTail_Ones" overwrites it with all 1s.
+      "tile_tail": "ZvtTileTail_Undisturbed",
+      // The exception a misaligned tile load or store raises:
+      // "ZvtMisaligned_AlignmentException" or "ZvtMisaligned_AccessFault".
+      "misaligned_exception": "ZvtMisaligned_AlignmentException"
+    },
+    "Zvtbase": {
+      "supported": false
+    },
+    "Zvt8e": {
+      "supported": false
+    },
+    "Zvt16e": {
+      "supported": false
+    },
+    "Zvt64e": {
+      "supported": false
+    },
+    "Zvti8i32mm": {
+      "supported": false
+    },
+    "Zvtofp8fmm": {
+      "supported": false
+    },
+    "Zvtfp16fmm": {
+      "supported": false
+    },
+    "Zvtbf16fmm": {
+      "supported": false
+    },
+    "Zvtfmm": {
+      "supported": false
+    },
+    "Zvtdmm": {
+      "supported": false
+    },
     "Zvbb": {
       "supported": true
     },
