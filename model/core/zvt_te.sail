@@ -12,7 +12,7 @@
 // same reason VLEN is (vlen.sail): a configured type-level parameter with a
 // global constraint must be in scope in every module.  The prose
 // specification is src/unpriv/zvt.adoc in riscv/riscv-isa-manual at commit
-// 98b0e96fb240a0b6a54bf814fc2f6a139a409e10 (CC-BY-4.0).
+// 428f9947d774c52f4aa0a40268f52f8a19928f67 (CC-BY-4.0).
 
 // TE, the tile edge in elements at TEW <= 32 ([VME] Matrix Tile State).  [VME]
 // requires 4 <= TE <= VLEN/4, and the 14-bit mtype.tm field bounds TE by 8192.

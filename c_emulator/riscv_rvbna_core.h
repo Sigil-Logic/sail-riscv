@@ -6,7 +6,7 @@
 //
 // [RVBNA] is src/unpriv/rvbna.adoc in riscv/riscv-isa-manual at commit
 // e03ff979b15bf11f17afe2f6619835afd4e346b4 (CC-BY-4.0); [VME] (zvt.adoc at
-// 98b0e96fb240a0b6a54bf814fc2f6a139a409e10, Matrix Arithmetic Instructions)
+// 428f9947d774c52f4aa0a40268f52f8a19928f67, Matrix Arithmetic Instructions)
 // requires it for SEW <= 16.  This header has no dependency on the generated
 // model, so that it can be tested on its own.
 //

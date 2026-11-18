@@ -15,7 +15,7 @@
 // about on its own.
 //
 // The specification is src/unpriv/zvt.adoc in riscv/riscv-isa-manual at commit
-// 98b0e96fb240a0b6a54bf814fc2f6a139a409e10 (CC-BY-4.0), cited as [VME]; [V] is
+// 428f9947d774c52f4aa0a40268f52f8a19928f67 (CC-BY-4.0), cited as [VME]; [V] is
 // src/unpriv/vector-common.adoc at the same commit.  Where [VME] leaves a
 // choice open, or is silent, the comments say which choice this model makes.
 //
@@ -223,7 +223,8 @@ function zvt_vgroup_ok(vt : Vtype, v : int) -> bool =
 function zvt_operand_ok(vt : Vtype, km : int, v : int) -> bool =
   zvt_vgroup_ok(vt, v) & zvt_mod(v, 8) < zvt_div(8, km)
 
-// vtzero (this model's reading of [VME]).
+// vtzero.  [VME] makes it illegal when vstart is nonzero; the rest is this
+// model's reading of [VME].
 function zvt_legal_vtzero(vt : Vtype, mt : Mtype, vst : int, mtd : int) -> bool =
   vt[vill] == 0b0 & zvt_configured(mt) & vst == 0
   & zvt_valid_tile(zvt_vtzero_tew(vt, mt), mtd)
