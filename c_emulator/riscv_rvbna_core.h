@@ -22,8 +22,11 @@
 //      shrinks as the exponent falls.
 //   3. OFP8 special values follow the OCP 8-bit floating point
 //      specification: E4M3 has no infinities, and S.1111.111 is its only NaN;
-//      E5M2 has IEEE 754 infinities and NaNs.  An E5M2 NaN is signaling when
-//      its mantissa MSB is 0, as in IEEE 754; an E4M3 NaN is quiet.
+//      E5M2 has IEEE 754 infinities and NaN encodings.  Every OFP8 NaN is
+//      quiet, so an OFP8 NaN operand alone does not raise NV; OCP leaves the
+//      E5M2 NaN mantissas uninterpreted.  This follows the proposal in the
+//      review of riscv/riscv-isa-manual PR 2618 (src/zvdota.adoc) that
+//      Zvfofp8min state that all OFP8 NaNs are quiet.
 
 #include <cstdint>
 
@@ -39,12 +42,13 @@ struct Format {
   int e;     // biased exponent width
   int m;     // mantissa (trailing significand) width
   bool e4m3; // OCP E4M3 special values
+  bool ofp8; // an OCP OFP8 format: its NaNs are quiet (choice 3)
 };
 
-constexpr Format E4M3 = {4, 3, true};
-constexpr Format E5M2 = {5, 2, false};
-constexpr Format FP16 = {5, 10, false};
-constexpr Format BF16 = {8, 7, false};
+constexpr Format E4M3 = {4, 3, true, true};
+constexpr Format E5M2 = {5, 2, false, true};
+constexpr Format FP16 = {5, 10, false, false};
+constexpr Format BF16 = {8, 7, false, false};
 
 // Flag bits as sail-riscv's SoftFloat interface returns them.
 constexpr uint8_t FLAG_NV = 0x10;
@@ -78,7 +82,9 @@ inline Operand classify(const Format &fmt, uint32_t x) {
   } else {
     o.inf = o.exp == maskExp && o.mant == 0;
     o.nan = o.exp == maskExp && o.mant != 0;
-    o.snan = o.nan && (o.mant & (1u << (fmt.m - 1))) == 0;
+    // Choice 3: an OFP8 (E5M2) NaN is quiet; an FP16 or BF16 NaN is
+    // signaling when its mantissa MSB is 0, as in IEEE 754.
+    o.snan = !fmt.ofp8 && o.nan && (o.mant & (1u << (fmt.m - 1))) == 0;
   }
   return o;
 }
