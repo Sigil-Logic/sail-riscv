@@ -15,7 +15,7 @@
 // about on its own.
 //
 // The specification is src/unpriv/zvt.adoc in riscv/riscv-isa-manual at commit
-// 428f9947d774c52f4aa0a40268f52f8a19928f67 (CC-BY-4.0), cited as [VME]; [V] is
+// aed99f8b5fada36a8147756237772b33c4c9a5c7 (CC-BY-4.0), cited as [VME]; [V] is
 // src/unpriv/vector-common.adoc at the same commit.  Where [VME] leaves a
 // choice open, or is silent, the comments say which choice this model makes.
 //
@@ -74,8 +74,8 @@ function zvt_kmax(sew : int, tw : int) -> option(int) =
 function zvt_kmax_d(sew : int, tw : int) -> int =
   match zvt_kmax(sew, tw) { Some(k) => k, None() => 0 }
 
-// The TEWs available to moves, loads and stores (this model's reading of
-// [VME]): 32 always, and 8, 16 and 64 with Zvt8e, Zvt16e and Zvt64e.
+// The TEWs available to moves, loads and stores ([VME], as stated since
+// 88e404c): 32 always, and 8, 16 and 64 with Zvt8e, Zvt16e and Zvt64e.
 function zvt_supported_tew(tew : int) -> bool =
     tew == 32
   | (tew == 8 & hartSupports(Ext_Zvt8e))
@@ -204,10 +204,10 @@ function zvt_type_row(op : zvt_arith_op, sw : int, tw : int, alt : bool)
 
 // ---- Legality ---------------------------------------------------------------
 
-// TEW of vtzero: SEW * TWIDEN (this model's reading of [VME]).
+// TEW of vtzero: SEW * TWIDEN ([VME], as stated since 88e404c).
 function zvt_vtzero_tew(vt : Vtype, mt : Mtype) -> int = zvt_sew(vt) * zvt_twiden(mt[mtwiden])
 
-// TEW of the moves: SEW, whatever TWIDEN is (this model's reading of [VME]).
+// TEW of the moves: SEW, whatever TWIDEN is ([VME], as stated since 88e404c).
 function zvt_move_tew(vt : Vtype) -> int = zvt_sew(vt)
 
 // The matrix unit is configured: mtwiden != 0.
@@ -223,8 +223,10 @@ function zvt_vgroup_ok(vt : Vtype, v : int) -> bool =
 function zvt_operand_ok(vt : Vtype, km : int, v : int) -> bool =
   zvt_vgroup_ok(vt, v) & zvt_mod(v, 8) < zvt_div(8, km)
 
-// vtzero.  [VME] makes it illegal when vstart is nonzero; the rest is this
-// model's reading of [VME].
+// vtzero.  [VME] makes it illegal when vstart is nonzero, and when mtwiden = 0
+// (the authors' reply to question Q2); that an invalid tile specifier makes it
+// illegal is the authors' reply to question Q17, as for the arithmetic
+// instructions.
 function zvt_legal_vtzero(vt : Vtype, mt : Mtype, vst : int, mtd : int) -> bool =
   vt[vill] == 0b0 & zvt_configured(mt) & vst == 0
   & zvt_valid_tile(zvt_vtzero_tew(vt, mt), mtd)
@@ -406,13 +408,14 @@ function zvt_prod_acc64(frm : bits(3), c : bits(64), vr : zvt_vrf, km : int,
 // For SEW <= 16, the products are bulk-normalized and accumulated in fixed
 // point, then converted to FP32 rounding to odd, by the RISC-V Bulk
 // Normalization Algorithm ([RVBNA], src/unpriv/rvbna.adoc in
-// riscv/riscv-isa-manual at commit e03ff979b15bf11f17afe2f6619835afd4e346b4);
+// riscv/riscv-isa-manual at commit c05f1725f25526dd8463bac6ca75cfcfbee17d05);
 // the result is then added to the accumulator rounding to odd as [RVBNA]
 // (Rounding to Odd behavior in dot product mode) describes ([VME] Matrix
 // Arithmetic Instructions).  frm is not used.  The arithmetic is in C, in
 // c_emulator/riscv_rvbna_core.h, which states the choices this model makes
-// where [VME] and [RVBNA] leave something open.  In particular, RVBNA's
-// static dimension n is KMAX, and the elements k >= tk are passed as +0.
+// where [VME] and [RVBNA] leave something open.  RVBNA's static dimension n
+// is KMAX, as [VME] states since 88e404c, and the elements k >= tk are
+// passed as +0.
 
 // The FP32 sum rounding to odd, with RVBNA's overflow and zero rules.
 val riscv_f32AddRoundOdd = pure {cpp: "softfloat_f32addroundodd", lem: "softfloat_f32_add_round_odd"} : (bits_S, bits_S) -> (bits_fflags, bits_S)
@@ -552,7 +555,8 @@ function zvt_vtzero(tl : zvt_tiles, vt : Vtype, mt : Mtype, cur_vl : int, mtd : 
 // ---- Whether a tile byte is written ----------------------------------------
 //
 // In this model, MS becomes Dirty when an instruction writes any tile byte,
-// whether or not its value changes, so the execute clauses cannot infer it by
+// whether or not its value changes, which [VME] makes implementation-defined
+// since 88e404c; so the execute clauses cannot infer it by
 // comparing tile values.  These predicates say whether an instruction writes
 // at least one tile byte.  ETE is at least 2, so element (0, 0) is always in
 // range.
@@ -636,8 +640,8 @@ function zvt_vtmv_v_t(tl : zvt_tiles, vr : zvt_vrf, vt : Vtype, cur_vl : int, vs
 }
 
 // vtmv.t.v rs1, vs2: vector register group to tile subset, at TEW = SEW.
-// The tile tail of the subset follows the tile tail policy, whatever vta is
-// (this model's reading of [VME]).
+// The tile tail of the subset follows the tile tail policy, whatever vta is:
+// [VME] makes it tail-agnostic since 88e404c.
 function zvt_vtmv_t_v(tl : zvt_tiles, vr : zvt_vrf, vt : Vtype, cur_vl : int, vst : int,
                       vs2 : int, tss : xlenbits) -> zvt_tiles = {
   let tew = zvt_move_tew(vt);
@@ -720,7 +724,10 @@ function zvt_matrix_lmul(sw : int, tw : int) -> int = {
 
 // mset_core: the msetmtype[i] behavior pseudocode of [VME] Matrix
 // Configuration Instructions, from the point where mtype and vtype hold the
-// new values.  An unsupported TEW sets vill (this model's reading of [VME]).
+// new values.  An unsupported TEW sets vill, as [VME] states since 88e404c.
+// The pseudocode of 88e404c dropped the test SEW * TWIDEN > ELEN, which this
+// model keeps, so TEW = 128 sets vill; aed99f8 restores it as TEW > ELEN
+// (question Q15, riscv/riscv-isa-manual PR 2997).
 function zvt_mset_core(mt : Mtype, vt : Vtype) -> (Vtype, Mtype) = {
   let ill0 = not(zvt_vtype_supported(vt));
   let (nvt1, nmt1, ill1) : (Vtype, Mtype, bool) =

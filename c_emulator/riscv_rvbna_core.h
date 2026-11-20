@@ -5,28 +5,31 @@
 // floating-point matrix multiplies.
 //
 // [RVBNA] is src/unpriv/rvbna.adoc in riscv/riscv-isa-manual at commit
-// e03ff979b15bf11f17afe2f6619835afd4e346b4 (CC-BY-4.0); [VME] (zvt.adoc at
-// 428f9947d774c52f4aa0a40268f52f8a19928f67, Matrix Arithmetic Instructions)
+// c05f1725f25526dd8463bac6ca75cfcfbee17d05 (CC-BY-4.0); [VME] (zvt.adoc at
+// aed99f8b5fada36a8147756237772b33c4c9a5c7, Matrix Arithmetic Instructions)
 // requires it for SEW <= 16.  This header has no dependency on the generated
 // model, so that it can be tested on its own.
 //
-// The choices this model makes where [VME] and [RVBNA] leave something
-// open, each marked "Choice" below:
-//   1. n, the static dimension, is KMAX: 4 at SEW = 8 and 2 at SEW = 16.
+// The choices this model made where [VME] and [RVBNA] left something open,
+// each marked "Choice" below; all three are now stated upstream:
+//   1. n, the static dimension, is KMAX: 4 at SEW = 8 and 2 at SEW = 16, as
+//      [VME] states since 88e404c ("using n=KMAX").
 //      Elements k >= tk are passed as +0, the identity product that the
 //      [RVBNA] note on n describes for inactive elements.
 //   2. The final normalization rounds to odd, as the [RVBNA] prose says.
-//      Two lines of the [RVBNA] pseudocode, read literally, do not: the jam
-//      bit of a normal result (line 213) tests bits that are always zero,
-//      and the denormalization shift of a subnormal result (lines 233-234)
-//      shrinks as the exponent falls.
+//      Its pseudocode agrees since riscv/riscv-isa-manual PR 3244 (merged as
+//      b818fc57, and included in c05f1725), which fixed the jam bit of a
+//      normal result and the denormalization shift of a subnormal result;
+//      read literally, the earlier pin e03ff979 did not round to odd there.
 //   3. OFP8 special values follow the OCP 8-bit floating point
 //      specification: E4M3 has no infinities, and S.1111.111 is its only NaN;
 //      E5M2 has IEEE 754 infinities and NaN encodings.  Every OFP8 NaN is
 //      quiet, so an OFP8 NaN operand alone does not raise NV; OCP leaves the
-//      E5M2 NaN mantissas uninterpreted.  This follows the proposal in the
-//      review of riscv/riscv-isa-manual PR 2618 (src/zvdota.adoc) that
-//      Zvfofp8min state that all OFP8 NaNs are quiet.
+//      E5M2 NaN mantissas uninterpreted.  Zvfofp8min states that all OFP8
+//      NaNs are quiet (riscv/riscv-isa-manual PR 2979, still open,
+//      src/unpriv/zvfofp8min.adoc at
+//      e35267dea495d4735ed86969bf0920e95b26b104, lines 28-29); [VME] links Zvfofp8min for the OFP8 NaN formats
+//      since aed99f8, and the authors agreed (reply to question Q18).
 
 #include <cstdint>
 

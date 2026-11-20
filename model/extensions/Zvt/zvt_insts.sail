@@ -20,7 +20,7 @@
 //      after vtdiscard; VS Dirty and vstart = 0 by set_vstart; FS Dirty for
 //      the floating-point arithmetic instructions.
 // Encodings and assembly syntax are from src/unpriv/zvt.adoc in
-// riscv/riscv-isa-manual at commit 428f9947d774c52f4aa0a40268f52f8a19928f67
+// riscv/riscv-isa-manual at commit aed99f8b5fada36a8147756237772b33c4c9a5c7
 // (CC-BY-4.0), cited as [VME].  [VME] gives no assembly syntax for some
 // instructions; the comments say where this model chooses one.
 

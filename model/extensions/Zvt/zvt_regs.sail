@@ -10,7 +10,7 @@
 // CSR, the MS context status, and tile storage.
 //
 // The specification is src/unpriv/zvt.adoc in riscv/riscv-isa-manual at commit
-// 428f9947d774c52f4aa0a40268f52f8a19928f67 (CC-BY-4.0), cited as [VME]; [V] is
+// aed99f8b5fada36a8147756237772b33c4c9a5c7 (CC-BY-4.0), cited as [VME]; [V] is
 // src/unpriv/vector-common.adoc at the same commit.  Where [VME] leaves a
 // choice open, or is silent, the comments say which choice this model makes.
 
