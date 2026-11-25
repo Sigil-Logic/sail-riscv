@@ -15,7 +15,7 @@
 // about on its own.
 //
 // The specification is src/unpriv/zvt.adoc in riscv/riscv-isa-manual at commit
-// aed99f8b5fada36a8147756237772b33c4c9a5c7 (CC-BY-4.0), cited as [VME]; [V] is
+// d08c3323d284aa03c8d2abc27f35d04d4e8cb3dc (CC-BY-4.0), cited as [VME]; [V] is
 // src/unpriv/vector-common.adoc at the same commit.  Where [VME] leaves a
 // choice open, or is silent, the comments say which choice this model makes.
 //
@@ -57,7 +57,9 @@ function zvt_valid_tile(tew : int, t : int) -> bool =
   t < 16 & 0 < zvt_ntiles(tew) & zvt_mod(t, zvt_tile_stride(tew)) == 0
 
 // The KMAX table ([VME] Supported SEW, TWIDEN, and KMAX values), total over
-// the pairs it lists.
+// the pairs it lists.  Since Zvt v0.5 no extension supports the pairs 8/2,
+// 16/4 and 32/2 (zvt_supported_pair below), so msetmtype[i] sets vill for
+// them and their rows are never used.
 function zvt_kmax(sew : int, tw : int) -> option(int) =
   if sew == 8 & tw == 1 then Some(4)
   else if sew == 8 & tw == 2 then Some(4)
@@ -81,6 +83,17 @@ function zvt_supported_tew(tew : int) -> bool =
   | (tew == 8 & hartSupports(Ext_Zvt8e))
   | (tew == 16 & hartSupports(Ext_Zvt16e))
   | (tew == 64 & hartSupports(Ext_Zvt64e))
+
+// The (SEW, TWIDEN) pairs that msetmtype[i] accepts: those an implemented
+// extension supports ([VME] Overview, the "Supported SEW/TWIDEN" column of
+// the two extension tables, since Zvt v0.5).  Zvtfmm and Zvtdmm add none.
+function zvt_supported_pair(sw : int, tw : int) -> bool =
+    (sw == 32 & tw == 1)
+  | (sw == 8 & tw == 1 & hartSupports(Ext_Zvt8e))
+  | (sw == 16 & tw == 1 & hartSupports(Ext_Zvt16e))
+  | (sw == 64 & tw == 1 & hartSupports(Ext_Zvt64e))
+  | (sw == 8 & tw == 4 & (hartSupports(Ext_Zvti8i32mm) | hartSupports(Ext_Zvtofp8fmm)))
+  | (sw == 16 & tw == 2 & (hartSupports(Ext_Zvtfp16fmm) | hartSupports(Ext_Zvtbf16fmm)))
 
 // Zvt<N>t means TE >= N; derived from TE, not a parameter.
 function zvt_nt(n : int) -> bool = n <= te
@@ -112,18 +125,19 @@ function zvt_emul_regs(vt : Vtype) -> int = zvt_lmul_num(vt)
 
 // The byte offset of element (row, col) of tile at width tew in tile storage
 // viewed as 16 * TE * TE bytes ([VME] Tile Punning, case by case).  The
-// default case returns 0 and is unreachable under legality.
+// default case returns 0 and is unreachable under legality.  The TEW = 8 and
+// TEW = 16 cases are those of Zvt v0.5, which differ from v0.4 for TE >= 8.
 function zvt_punning(tile : int, row : int, col : int, tew : int) -> int = {
   let m = zvt_div(te, 4);
   let (ptile, minor, major) : (int, int, int) =
     if tew == 8 then
       (tile,
-       zvt_mod(row, 4) * 4 + zvt_mod(col, 4),
-       zvt_div(row, 4) * m + zvt_div(col, 4))
+       (2 * zvt_div(row, zvt_div(te, 2)) + zvt_mod(row, 2)) * 4 + zvt_mod(col, 4),
+       zvt_mod(zvt_div(row, 2), m) * m + zvt_div(col, 4))
     else if tew == 16 then
-      (tile + zvt_mod(zvt_div(row, 2), 2),
+      (tile + zvt_div(row, zvt_div(te, 2)),
        zvt_mod(row, 2) * 4 + zvt_mod(col, 2) * 2 + zvt_mod(zvt_div(col, 2), 2) * 8,
-       zvt_div(row, 4) * m + zvt_div(col, 4))
+       zvt_mod(zvt_div(row, 2), m) * m + zvt_div(col, 4))
     else if tew == 32 then
       (tile + 2 * zvt_div(row, zvt_div(te, 2)) + zvt_mod(zvt_div(col, 2), 2),
        zvt_mod(row, 2) * 8 + zvt_mod(col, 2) * 4,
@@ -724,10 +738,11 @@ function zvt_matrix_lmul(sw : int, tw : int) -> int = {
 
 // mset_core: the msetmtype[i] behavior pseudocode of [VME] Matrix
 // Configuration Instructions, from the point where mtype and vtype hold the
-// new values.  An unsupported TEW sets vill, as [VME] states since 88e404c.
-// The pseudocode of 88e404c dropped the test SEW * TWIDEN > ELEN, which this
-// model keeps, so TEW = 128 sets vill; aed99f8 restores it as TEW > ELEN
-// (question Q15, riscv/riscv-isa-manual PR 2997).
+// new values.  vill is set when no implemented extension supports the
+// (SEW, TWIDEN) pair, as [VME] states since Zvt v0.5 (ec4b644; the authors'
+// revised answer to question Q16, riscv/riscv-isa-manual PR 2997).  That
+// rule replaces the tests of v0.4, TEW > ELEN and TEW = 8, 16 or 64 without
+// Zvt8e, Zvt16e or Zvt64e, and implies both.
 function zvt_mset_core(mt : Mtype, vt : Vtype) -> (Vtype, Mtype) = {
   let ill0 = not(zvt_vtype_supported(vt));
   let (nvt1, nmt1, ill1) : (Vtype, Mtype, bool) =
@@ -740,7 +755,7 @@ function zvt_mset_core(mt : Mtype, vt : Vtype) -> (Vtype, Mtype) = {
       let mt' = [mt with
         tm = to_bits_truncate(14, min(unsigned(mt[tm]), min(l * zvt_eve(sw), zvt_ete(sw * tw)))),
         tk = to_bits_truncate(3, min(unsigned(mt[tk]), zvt_kmax_d(sw, tw)))];
-      (vt', mt', ill0 | elen < sw * tw | not(zvt_supported_tew(sw * tw)))
+      (vt', mt', ill0 | not(zvt_supported_pair(sw, tw)))
     };
   let nmt2 = if ill1 | mt[mtwiden] == 0b00 then Mk_Mtype(zeros()) else nmt1;
   let nvt2 = if ill1 then zvt_vtype_ill() else nvt1;
