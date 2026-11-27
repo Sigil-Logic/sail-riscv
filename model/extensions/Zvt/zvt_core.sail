@@ -15,7 +15,7 @@
 // about on its own.
 //
 // The specification is src/unpriv/zvt.adoc in riscv/riscv-isa-manual at commit
-// d08c3323d284aa03c8d2abc27f35d04d4e8cb3dc (CC-BY-4.0), cited as [VME]; [V] is
+// 0ea90b9437f0f859a472b51eee81adb0769b61e8 (CC-BY-4.0), cited as [VME]; [V] is
 // src/unpriv/vector-common.adoc at the same commit.  Where [VME] leaves a
 // choice open, or is silent, the comments say which choice this model makes.
 //
@@ -57,9 +57,9 @@ function zvt_valid_tile(tew : int, t : int) -> bool =
   t < 16 & 0 < zvt_ntiles(tew) & zvt_mod(t, zvt_tile_stride(tew)) == 0
 
 // The KMAX table ([VME] Supported SEW, TWIDEN, and KMAX values), total over
-// the pairs it lists.  Since Zvt v0.5 no extension supports the pairs 8/2,
-// 16/4 and 32/2 (zvt_supported_pair below), so msetmtype[i] sets vill for
-// them and their rows are never used.
+// the pairs it lists.  [VME] marks the rows of the pairs 8/2, 16/4 and 32/2
+// as reserved: no extension supports those pairs (zvt_supported_pair
+// below), so msetmtype[i] sets vill for them.
 function zvt_kmax(sew : int, tw : int) -> option(int) =
   if sew == 8 & tw == 1 then Some(4)
   else if sew == 8 & tw == 2 then Some(4)
